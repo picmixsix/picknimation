@@ -3,237 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AI Control Center & Hardware Diagnostics</title>
+    <title>picmixsix // Virtual Office Divisi</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #030303; font-family: 'Courier New', Courier, monospace; }
+        body { margin: 0; overflow: hidden; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         canvas { display: block; outline: none; }
         #hud {
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #00ffcc;
+            color: #333;
             pointer-events: none;
-            text-shadow: 0 0 5px #00ffcc;
-            background: rgba(0, 20, 20, 0.5);
+            background: rgba(255, 255, 255, 0.9);
             padding: 15px;
-            border-left: 3px solid #00ffcc;
-            border-radius: 4px;
+            border-left: 4px solid #0066ff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        .title { font-size: 16px; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #00ffcc; padding-bottom: 4px; }
-        .log-line { font-size: 12px; margin-bottom: 4px; opacity: 0.9; }
-        #interaction-hint {
-            position: absolute;
-            bottom: 30px;
-            width: 100%;
-            text-align: center;
-            color: #fff;
-            font-size: 12px;
-            opacity: 0.5;
-            pointer-events: none;
-        }
+        .title { font-size: 16px; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        .log-line { font-size: 12px; margin-bottom: 4px; color: #555; }
     </style>
 </head>
 <body>
     <div id="hud">
-        <div class="title">sandyackerman // VIRTUAL_WORKSPACE</div>
+        <div class="title">picmixsix // VIRTUAL_OFFICE</div>
         <div id="status-log">
-            <div class="log-line">>>> SISTEM ONLINE...</div>
-            <div class="log-line">>>> MENUNGGU INPUT PENGGUNA...</div>
+            <div class="log-line">>>> Memuat Ruang Divisi (Mode Ringan)...</div>
+            <div class="log-line">>>> Sistem Otomasi: Aktif</div>
         </div>
     </div>
-    <div id="interaction-hint">[ SENTUH OBJEK UNTUK MENJALANKAN DIAGNOSTIK ]</div>
 
+    <!-- Load Three.js secara serverless -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
-        // --- 1. SETUP INTI ---
+        // 1. Setup Dasar (Terang & Bersih)
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x030303, 0.08);
+        scene.background = new THREE.Color(0xf0f4f8); // Background abu-abu terang
+        scene.fog = new THREE.Fog(0xf0f4f8, 5, 20);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 2.5, 4.5);
+        camera.position.set(0, 2.5, 5);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // Aktifkan bayangan agar realistis
         document.body.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.01;
 
-        // Pencahayaan
-        scene.add(new THREE.AmbientLight(0x222222));
-        const mainLight = new THREE.PointLight(0x00ffcc, 1.2, 10);
-        mainLight.position.set(0, 3, 0);
-        scene.add(mainLight);
+        // 2. Pencahayaan Kantor (Terang)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
 
-        // Lantai Grid
-        const gridHelper = new THREE.GridHelper(20, 40, 0x00ffcc, 0x111111);
-        gridHelper.position.y = -0.01;
-        gridHelper.material.opacity = 0.3;
-        gridHelper.material.transparent = true;
-        scene.add(gridHelper);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 5);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
 
-        // List objek interaktif
-        const interactables = [];
+        // 3. Lantai Kayu Sederhana & Dinding
+        const floorGeo = new THREE.PlaneGeometry(20, 20);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.8 }); // Warna coklat kayu muda
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
 
-        // --- 2. LAYAR TERMINAL DINAMIS (Canvas Texture) ---
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-        
-        function updateTerminalScreen(textArray) {
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#00ffcc';
-            ctx.font = '24px monospace';
-            for(let i=0; i<textArray.length; i++) {
-                ctx.fillText(textArray[i], 20, 40 + (i * 35));
-            }
-            if(monitorTexture) monitorTexture.needsUpdate = true;
-        }
-        
-        let monitorTexture = new THREE.CanvasTexture(canvas);
-        updateTerminalScreen(['SYSTEM.BOOT()', 'LOADING KERNEL...', 'AWAITING COMMANDS_']);
+        const wallGeo = new THREE.BoxGeometry(20, 5, 0.2);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff }); // Dinding putih bersih
+        const wall = new THREE.Mesh(wallGeo, wallMat);
+        wall.position.set(0, 2.5, -3);
+        wall.receiveShadow = true;
+        scene.add(wall);
 
-        // Meja & Monitor
+        // 4. Membuat Meja Kerja Divisi (Gaya Minimalis)
         const deskGroup = new THREE.Group();
-        const deskTop = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.05, 1.2), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 }));
+        
+        // Papan Meja (Putih)
+        const topGeo = new THREE.BoxGeometry(3, 0.1, 1.5);
+        const topMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.2 });
+        const deskTop = new THREE.Mesh(topGeo, topMat);
         deskTop.position.y = 1;
+        deskTop.castShadow = true;
+        deskTop.receiveShadow = true;
         deskGroup.add(deskTop);
+
+        // Kaki Meja (Besi Hitam)
+        const legGeo = new THREE.BoxGeometry(0.1, 1, 1.3);
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.5 });
+        const legL = new THREE.Mesh(legGeo, legMat);
+        legL.position.set(-1.4, 0.5, 0);
+        legL.castShadow = true;
+        deskGroup.add(legL);
+        
+        const legR = new THREE.Mesh(legGeo, legMat);
+        legR.position.set(1.4, 0.5, 0);
+        legR.castShadow = true;
+        deskGroup.add(legR);
+
         scene.add(deskGroup);
 
-        const monitorGeo = new THREE.PlaneGeometry(1.4, 0.7);
-        const monitorMat = new THREE.MeshBasicMaterial({ map: monitorTexture, side: THREE.DoubleSide });
+        // 5. Membuat Perwakilan iMac / Layar Monitor
+        const macGroup = new THREE.Group();
+        
+        // Stand Monitor
+        const standGeo = new THREE.BoxGeometry(0.2, 0.3, 0.2);
+        const silverMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.2 });
+        const stand = new THREE.Mesh(standGeo, silverMat);
+        stand.position.set(0, 1.15, -0.2);
+        macGroup.add(stand);
+
+        // Bodi Layar
+        const monitorGeo = new THREE.BoxGeometry(1.2, 0.8, 0.05);
+        const monitorMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
         const monitor = new THREE.Mesh(monitorGeo, monitorMat);
-        monitor.position.set(0, 1.45, -0.2);
-        monitor.rotation.x = -0.1;
-        scene.add(monitor);
+        monitor.position.set(0, 1.5, -0.15);
+        macGroup.add(monitor);
 
-        // --- 3. MODUL PERANGKAT KERAS (CRM/ATM NODE) ---
-        const hardwareGroup = new THREE.Group();
-        hardwareGroup.userData = { id: 'CRM_NODE' };
+        // Layar Menyala
+        const screenGeo = new THREE.PlaneGeometry(1.1, 0.7);
+        const screenMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x0055ff, emissiveIntensity: 0.4 });
+        const screen = new THREE.Mesh(screenGeo, screenMat);
+        screen.position.set(0, 1.5, -0.12);
+        macGroup.add(screen);
 
-        const hwBody = new THREE.Mesh(new THREE.BoxGeometry(1, 1.8, 0.8), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.9 }));
-        hwBody.position.y = 0.9;
-        hardwareGroup.add(hwBody);
+        macGroup.position.set(0, 0, 0);
+        macGroup.castShadow = true;
+        scene.add(macGroup);
 
-        const hwScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.5), new THREE.MeshBasicMaterial({ color: 0x0044ff }));
-        hwScreen.position.set(0, 1.4, 0.41);
-        hardwareGroup.add(hwScreen);
-        
-        const hwSlot = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.1), new THREE.MeshBasicMaterial({ color: 0x00ffcc }));
-        hwSlot.position.set(0, 0.8, 0.41);
-        hardwareGroup.add(hwSlot);
-
-        hardwareGroup.position.set(2, 0, -1);
-        scene.add(hardwareGroup);
-        interactables.push(hwBody, hwScreen, hwSlot);
-
-        // --- 4. RAK SERVER ---
-        const serverGroup = new THREE.Group();
-        serverGroup.userData = { id: 'SERVER_RACK' };
-        
-        const serverBody = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.2, 0.8), new THREE.MeshStandardMaterial({ color: 0x151515 }));
-        serverBody.position.y = 1.1;
-        serverGroup.add(serverBody);
-        serverGroup.position.set(-2, 0, -1);
-        scene.add(serverGroup);
-        interactables.push(serverBody);
-
-        // --- 5. AI CORE (Giroskopik) ---
-        const botGroup = new THREE.Group();
-        botGroup.userData = { id: 'AI_CORE' };
-
-        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x00ffcc, emissiveIntensity: 1, wireframe: true }));
-        botGroup.add(core);
-
-        const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.01, 16, 100), new THREE.MeshBasicMaterial({ color: 0x00ffcc }));
-        botGroup.add(ring1);
-        
-        const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.01, 16, 100), new THREE.MeshBasicMaterial({ color: 0x00ffcc }));
-        ring2.rotation.x = Math.PI / 2;
-        botGroup.add(ring2);
-
-        botGroup.position.set(0, 1.9, 0.3);
-        scene.add(botGroup);
-        interactables.push(core, ring1, ring2);
-
-        // Partikel
-        const particleGeo = new THREE.BufferGeometry();
-        const particlePos = new Float32Array(300);
-        for(let i=0; i<300; i++) particlePos[i] = (Math.random() - 0.5) * 6;
-        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
-        const particles = new THREE.Points(particleGeo, new THREE.PointsMaterial({ color: 0x00ffcc, size: 0.02 }));
-        scene.add(particles);
-
-        // --- 6. SISTEM INTERAKSI (RAYCASTER) ---
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let botSpeedMultiplier = 1;
-
-        function updateHUD(message) {
-            const logContainer = document.getElementById('status-log');
-            logContainer.innerHTML = `<div class="log-line">>>> ${message}</div>` + logContainer.innerHTML;
-            if(logContainer.children.length > 4) logContainer.removeChild(logContainer.lastChild);
-        }
-
-        window.addEventListener('pointerdown', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-
-            const intersects = raycaster.intersectObjects(interactables);
-            if (intersects.length > 0) {
-                let obj = intersects[0].object;
-                while (obj.parent && !obj.userData.id) { obj = obj.parent; }
-                
-                if (obj.userData.id === 'AI_CORE') {
-                    updateHUD("MENGEKSEKUSI SCRIPT OTOMATISASI...");
-                    updateTerminalScreen(['> RUNNING AI_AGENT.PY', '> SYNCING REPOSITORY...', '> SUCCESS']);
-                    botSpeedMultiplier = 5; // Percepat putaran bot
-                    setTimeout(() => botSpeedMultiplier = 1, 2000);
-                } 
-                else if (obj.userData.id === 'CRM_NODE') {
-                    updateHUD("DIAGNOSTIK HARDWARE CRM DIMULAI...");
-                    updateTerminalScreen(['> PING CRM_NODE_01', '> CASSETTE STATUS: OK', '> DISPENSER: READY']);
-                    hwSlot.material.color.setHex(0xff0000); // Kedip merah
-                    setTimeout(() => hwSlot.material.color.setHex(0x00ffcc), 500);
-                }
-                else if (obj.userData.id === 'SERVER_RACK') {
-                    updateHUD("MEMERIKSA LALU LINTAS JARINGAN...");
-                    updateTerminalScreen(['> SERVER TRAFFIC: 84%', '> ROUTING DATA...', '> SECURE CONNECTION']);
-                }
-            }
-        });
-
-        // --- 7. ANIMASI LOOP ---
-        const clock = new THREE.Clock();
-
+        // 6. Loop Render
         function animate() {
             requestAnimationFrame(animate);
-            const time = clock.getElapsedTime();
-
-            // Animasi AI
-            botGroup.position.y = 1.9 + Math.sin(time * 2) * 0.1;
-            core.rotation.y += 0.02 * botSpeedMultiplier;
-            core.rotation.x += 0.01 * botSpeedMultiplier;
-            ring1.rotation.y += 0.03 * botSpeedMultiplier;
-            ring1.rotation.x += 0.01;
-            ring2.rotation.y -= 0.02 * botSpeedMultiplier;
-            ring2.rotation.z += 0.03;
-
-            // Animasi Partikel
-            const pos = particles.geometry.attributes.position.array;
-            for(let i=1; i<300; i+=3) {
-                pos[i] += 0.01;
-                if(pos[i] > 3) pos[i] = -1;
-            }
-            particles.geometry.attributes.position.needsUpdate = true;
-
             controls.update();
             renderer.render(scene, camera);
         }
