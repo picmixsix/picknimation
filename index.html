@@ -2,124 +2,252 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bot Narasi Animasi</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D AI Animation Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Three.js dari CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Load OrbitControls untuk navigasi kamera sentuh di HP -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        .loader { border-top-color: #3b82f6; animation: spinner 1s linear infinite; }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { margin: 0; overflow: hidden; background-color: #111; font-family: sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* UI Overlay di atas 3D Canvas */
+        #ui-layer {
+            position: absolute; bottom: 0; left: 0; width: 100%; 
+            z-index: 10; padding: 15px; box-sizing: border-box;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+        }
+        
+        .station-label {
+            position: absolute;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            pointer-events: none;
+            border: 1px solid #555;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s;
+            z-index: 5;
+        }
+        
+        .active-label { border-color: #00ffcc; color: #00ffcc; box-shadow: 0 0 10px #00ffcc; transform: translate(-50%, -50%) scale(1.2); }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-4 font-sans">
+<body>
 
-    <div class="max-w-2xl mx-auto mt-6">
-        <h1 class="text-3xl font-bold text-blue-400 mb-2">Bot Narasi Animasi</h1>
-        <p class="text-gray-400 mb-6 text-sm">Generator script dan storyboard animasi berbasis AI.</p>
+    <!-- Wadah 3D -->
+    <div id="canvas-container"></div>
 
-        <!-- Konfigurasi API Key -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 border border-gray-700">
-            <label class="block text-sm font-medium mb-1">Gemini API Key</label>
-            <input type="password" id="apiKey" placeholder="Masukkan API Key Gemini..." 
-                class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 text-sm">
-            <p class="text-xs text-gray-500 mt-2">*Disimpan secara lokal di browser HP Anda.</p>
-        </div>
-
-        <!-- Input Tema -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 border border-gray-700">
-            <label class="block text-sm font-medium mb-1">Tema / Topik Animasi</label>
-            <textarea id="tema" rows="3" placeholder="Contoh: Petualangan robot kecil yang mencari sumber energi di planet yang hancur..." 
-                class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 text-sm mb-3"></textarea>
-            
-            <button onclick="generateNarasi()" id="btnGenerate" 
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors">
-                Buat Narasi Animasi
+    <!-- UI Panel Control -->
+    <div id="ui-layer" class="text-white">
+        <h1 class="text-lg font-bold text-blue-400 mb-1">AI 3D Virtual Studio</h1>
+        <p id="status-text" class="text-xs text-gray-300 mb-3">Menunggu instruksi proyek...</p>
+        
+        <div class="flex gap-2">
+            <input type="text" id="project-theme" placeholder="Tema: Invasi Alien..." 
+                class="w-full p-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500">
+            <button onclick="startProduction()" id="btn-start"
+                class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-bold whitespace-nowrap">
+                Mulai
             </button>
-        </div>
-
-        <!-- Loading State -->
-        <div id="loading" class="hidden flex flex-col items-center justify-center py-8">
-            <div class="w-8 h-8 border-4 border-gray-700 rounded-full loader mb-4"></div>
-            <p id="loadingText" class="text-blue-400 text-sm animate-pulse">Menghubungkan ke Gemini 3.8 Flash...</p>
-        </div>
-
-        <!-- Hasil Output -->
-        <div id="outputContainer" class="hidden bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg">
-            <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Hasil Narasi:</h2>
-            <div id="hasil" class="prose prose-invert max-w-none text-sm md:text-base leading-relaxed"></div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Label Divisi (Diupdate posisinya oleh JavaScript) -->
+    <div id="labels-container"></div>
+
     <script>
-        window.onload = () => {
-            const savedKey = localStorage.getItem('gemini_api_key');
-            if(savedKey) document.getElementById('apiKey').value = savedKey;
-        };
+        // --- SETTING DASAR THREE.JS ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        scene.fog = new THREE.Fog(0x1a1a1a, 10, 50);
 
-        async function generateNarasi() {
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const tema = document.getElementById('tema').value.trim();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 15, 20); // Posisi kamera menghadap kantor dari atas
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // Kontrol Kamera (Bisa digeser pakai jari di HP)
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // Jangan sampai tembus lantai
+
+        // Pencahayaan
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // Lantai Kantor
+        const floorGeo = new THREE.PlaneGeometry(40, 40);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // --- PEMBUATAN 6 DIVISI AI (BLOCKOUT) ---
+        const stations = [];
+        const labelsContainer = document.getElementById('labels-container');
+
+        // Fungsi membuat meja & karakter AI
+        function createStation(id, name, color, x, z) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+
+            // Meja Kerja
+            const deskGeo = new THREE.BoxGeometry(3, 1, 2);
+            const deskMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+            const desk = new THREE.Mesh(deskGeo, deskMat);
+            desk.position.y = 0.5;
+            desk.castShadow = true;
+            group.add(desk);
+
+            // Karakter AI (Representasi Silinder/Pion)
+            const aiGeo = new THREE.CylinderGeometry(0.5, 0.5, 2, 16);
+            const aiMat = new THREE.MeshStandardMaterial({ color: color });
+            const aiMesh = new THREE.Mesh(aiGeo, aiMat);
+            aiMesh.position.set(0, 1, -0.5);
+            aiMesh.castShadow = true;
+            group.add(aiMesh);
+
+            // Layar / Monitor
+            const screenGeo = new THREE.BoxGeometry(1.5, 1, 0.1);
+            const screenMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x111111 });
+            const screenMesh = new THREE.Mesh(screenGeo, screenMat);
+            screenMesh.position.set(0, 1.5, 0.5);
+            group.add(screenMesh);
+
+            // Lampu Indikator Stasiun
+            const pointLight = new THREE.PointLight(color, 0, 5);
+            pointLight.position.set(0, 3, 0);
+            group.add(pointLight);
+
+            scene.add(group);
+
+            // Buat Label HTML
+            const label = document.createElement('div');
+            label.className = 'station-label';
+            label.id = 'label-' + id;
+            label.innerText = name;
+            labelsContainer.appendChild(label);
+
+            stations.push({ id, name, group, light: pointLight, screen: screenMat, defaultColor: color, labelElement: label });
+        }
+
+        // Susunan Kantor (X, Z coordinates)
+        createStation(1, "1. Creative Director", 0xff3333, 0, -8);     // Tengah Belakang (Direktur)
+        createStation(2, "2. Scriptwriter", 0x3388ff, -6, -2);       // Kiri Atas
+        createStation(3, "3. Layout & Prompt", 0xffff33, 6, -2);     // Kanan Atas
+        createStation(4, "4. Asset Painter", 0xcc33ff, -6, 5);       // Kiri Bawah
+        createStation(5, "5. Motion & Render", 0x33ff33, 6, 5);      // Kanan Bawah
+        createStation(6, "6. Audio Booth", 0xff8833, 0, 10);         // Tengah Depan
+
+        // Sinkronisasi Label 3D ke 2D Layar HP
+        function updateLabels() {
+            stations.forEach(st => {
+                const vector = new THREE.Vector3();
+                st.group.getWorldPosition(vector);
+                vector.y += 3; // Posisi label di atas karakter
+                vector.project(camera);
+
+                const x = (vector.x * .5 + .5) * window.innerWidth;
+                const y = (vector.y * -.5 + .5) * window.innerHeight;
+
+                st.labelElement.style.left = `${x}px`;
+                st.labelElement.style.top = `${y}px`;
+            });
+        }
+
+        // Render Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle Resize HP
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- SISTEM SIMULASI ALUR KERJA ---
+        const statusText = document.getElementById('status-text');
+
+        async function startProduction() {
+            const theme = document.getElementById('project-theme').value;
+            if(!theme) { alert("Masukkan tema dulu!"); return; }
+            document.getElementById('btn-start').disabled = true;
+
+            // Reset semua lampu
+            stations.forEach(st => {
+                st.light.intensity = 0;
+                st.screen.emissive.setHex(0x111111);
+                st.labelElement.classList.remove('active-label');
+            });
+
+            // Simulasi proses per divisi
+            for (let i = 0; i < stations.length; i++) {
+                const st = stations[i];
+                
+                // Nyalakan indikator stasiun yang sedang aktif
+                st.light.intensity = 2; // Lampu stasiun nyala
+                st.screen.emissive.setHex(st.defaultColor); // Monitor menyala
+                st.labelElement.classList.add('active-label');
+                
+                statusText.innerText = `Menjalankan: ${st.name}...`;
+                
+                // Zoom perlahan kamera ke stasiun yang bekerja
+                gsapCameraMove(st.group.position.x, st.group.position.z + 8);
+
+                // Tunggu 3 detik seolah-olah API / GitHub Actions sedang proses
+                await new Promise(r => setTimeout(r, 3000));
+
+                // Matikan indikator setelah selesai
+                st.light.intensity = 0;
+                st.screen.emissive.setHex(0x111111);
+                st.labelElement.classList.remove('active-label');
+            }
+
+            statusText.innerText = "Produksi Selesai! Video siap diunduh.";
+            document.getElementById('btn-start').disabled = false;
             
-            if(!apiKey || !tema) {
-                alert("API Key dan Tema tidak boleh kosong!");
-                return;
-            }
+            // Kembalikan kamera ke posisi semula
+            gsapCameraMove(0, 20, 15);
+        }
 
-            localStorage.setItem('gemini_api_key', apiKey);
+        // Fungsi manual memindahkan kamera perlahan
+        function gsapCameraMove(targetX, targetZ, targetY = 10) {
+            const startX = camera.position.x;
+            const startY = camera.position.y;
+            const startZ = camera.position.z;
+            let progress = 0;
 
-            const btn = document.getElementById('btnGenerate');
-            const loading = document.getElementById('loading');
-            const outputContainer = document.getElementById('outputContainer');
-            const hasil = document.getElementById('hasil');
-
-            btn.disabled = true;
-            btn.classList.add('opacity-50');
-            loading.classList.remove('hidden');
-            outputContainer.classList.add('hidden');
-            hasil.innerHTML = '';
-
-            const prompt = `Anda adalah seorang sutradara dan penulis naskah animasi profesional. 
-Buatlah narasi, storyboard, dan naskah animasi berdasarkan tema berikut: "${tema}".
-
-Format output menggunakan Markdown dengan struktur:
-1. **Judul Animasi:** (Beri judul yang menarik)
-2. **Logline:** (1 kalimat ringkasan cerita)
-3. **Karakter Utama:** (Nama dan deskripsi singkat visual mereka)
-4. **Scene by Scene:** (Buat minimal 3 scene). Untuk setiap scene jabarkan:
-   - **Visual:** (Deskripsikan apa yang terlihat di layar, pergerakan kamera, pencahayaan)
-   - **Audio/SFX:** (Suara latar atau efek suara yang terdengar)
-   - **Dialog/Voice Over:** (Kata-kata yang diucapkan karakter)
-
-Pastikan bahasanya visual dan mudah dibayangkan oleh animator.`;
-
-            try {
-                // Langsung menembak model gemini-3.8-flash sesuai instruksi server Google
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                const data = await response.json();
-                
-                if(data.error) {
-                    throw new Error(data.error.message);
+            function move() {
+                progress += 0.02;
+                if(progress <= 1) {
+                    camera.position.x = startX + (targetX - startX) * progress;
+                    camera.position.y = startY + (targetY - startY) * progress;
+                    camera.position.z = startZ + (targetZ - startZ) * progress;
+                    requestAnimationFrame(move);
                 }
-
-                const textOutput = data.candidates[0].content.parts[0].text;
-                
-                hasil.innerHTML = marked.parse(textOutput);
-                outputContainer.classList.remove('hidden');
-
-            } catch (error) {
-                alert("Terjadi kesalahan: " + error.message);
-            } finally {
-                btn.disabled = false;
-                btn.classList.remove('opacity-50');
-                loading.classList.add('hidden');
             }
+            move();
         }
     </script>
 </body>
