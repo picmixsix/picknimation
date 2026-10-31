@@ -1,154 +1,159 @@
 <!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>picmixsix // Virtual Office Divisi</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        canvas { display: block; outline: none; }
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #333;
-            pointer-events: none;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-left: 4px solid #0066ff;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .title { font-size: 16px; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-        .log-line { font-size: 12px; margin-bottom: 4px; color: #555; }
-    </style>
-</head>
-<body>
-    <div id="hud">
-        <div class="title">picmixsix // VIRTUAL_OFFICE</div>
-        <div id="status-log">
-            <div class="log-line">>>> Memuat Ruang Divisi (Mode Ringan)...</div>
-            <div class="log-line">>>> Sistem Otomasi: Aktif</div>
-        </div>
-    </div>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kantor AI 3D - Sistem Otomasi Video</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#8e9296;font-family:system-ui,sans-serif;touch-action:none}
+canvas{display:block}
+#t{position:fixed;left:10px;top:10px;padding:8px 12px;background:#000a;color:#fff;border-radius:10px;font-size:13px;line-height:1.45;pointer-events:none;max-width:72vw}
+#b{position:fixed;right:10px;bottom:16px;display:flex;flex-direction:column;gap:8px}
+#b button{width:46px;height:46px;border:0;border-radius:12px;background:#000b;color:#fff;font-size:21px}
+</style></head><body>
+<div id="t"><b>Kantor AI 3D</b><br><span id="i"></span><br><small>Seret: putar · Cubit: zoom · Dua jari: geser</small></div>
+<div id="b"><button id="zi">+</button><button id="zo">−</button><button id="rs">⌂</button><button id="au">⏸</button></div>
 
-    <!-- Load Three.js secara serverless -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- PANEL KONTROL BOT NARASI -->
+<div id="panel-bot" style="position:fixed; left:10px; top:110px; padding:12px; background:#000a; color:#fff; border-radius:10px; font-size:13px; z-index:99; border-left:3px solid #ff7d00;">
+    <b>⚙️ Generator Narasi</b><br>
+    <input type="text" id="input-tema" placeholder="Masukkan Tema Video..." style="margin-top:8px; width:90%; padding:5px; border-radius:4px; border:none; color:#333;"><br>
+    <button id="btn-generate" style="margin-top:8px; width:100%; padding:6px; background:#ff7d00; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Tugaskan Dimas (Kreator)</button>
+    <div id="hasil-narasi" style="margin-top:10px; font-size:12px; max-width:220px; white-space:pre-wrap; color:#a8dadc;"></div>
+</div>
 
-    <script>
-        // 1. Setup Dasar (Terang & Bersih)
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf0f4f8); // Background abu-abu terang
-        scene.fog = new THREE.Fog(0xf0f4f8, 5, 20);
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import*as THREE from'three';
+import{OrbitControls}from'three/addons/controls/OrbitControls.js';
+const rnd=(a,b)=>a+Math.random()*(b-a),pk=a=>a[Math.random()*a.length|0],$=id=>document.getElementById(id),PI=Math.PI;
+const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;document.body.appendChild(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color(0x8e9296);
+const C=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,.5,400),home=new THREE.Vector3(0,27,25);C.position.copy(home);
+const O=new OrbitControls(C,R.domElement);O.enableDamping=true;O.minDistance=6;O.maxDistance=80;O.maxPolarAngle=1.5;O.screenSpacePanning=true;
+S.add(new THREE.HemisphereLight(0xffffff,0x8a8f98,1.2));
+const L=new THREE.DirectionalLight(0xffffff,2.1);L.position.set(-14,30,18);L.castShadow=true;L.shadow.mapSize.set(2048,2048);Object.assign(L.shadow.camera,{left:-32,right:32,top:22,bottom:-22,far:90});L.shadow.bias=-.0005;S.add(L);
+/* ---------- util ---------- */
+const mc={},mat=(c,o={})=>{const k=c+JSON.stringify(o);return mc[k]||(mc[k]=new THREE.MeshStandardMaterial({color:c,roughness:.7,...o}))};
+const GL=mat(0x9ed4f0,{transparent:true,opacity:.3,roughness:.1,depthWrite:false}),SC=mat(0x1b6fd1,{emissive:0x3b8cff,emissiveIntensity:.9}),LS=mat(0x2ecc71,{emissive:0x2ecc71});
+const ctex=(w,h,f)=>{const c=document.createElement('canvas');c.width=w;c.height=h;f(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t};
+const B=new THREE.Group();S.add(B);
+const W=40,H=24,blk=new Uint8Array(W*H),OB=[],ob=(x,z,w,d,r=0)=>OB.push(Math.abs(Math.sin(r))>.5?[x,z,d,w]:[x,z,w,d]);
+const gp=(x,z,r=0,p=B)=>{const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=r;p.add(g);return g};
+const M=(geo,c,x,y,z,p)=>{const m=new THREE.Mesh(geo,c.isMaterial?c:mat(c));m.position.set(x,y,z);p.add(m);return m};
+const bx=(w,h,d,c,x,y,z,p=B)=>M(new THREE.BoxGeometry(w,h,d),c,x,y+h/2,z,p);
+const cy=(r,h,c,x,y,z,p=B,s=16)=>M(new THREE.CylinderGeometry(r,r,h,s),c,x,y+h/2,z,p);
+const ic=(r,c,x,y,z,p=B)=>M(new THREE.IcosahedronGeometry(r,1),c,x,y,z,p);
+const GR=[0x3f8a45,0x2f7a3a,0x58a34f];
+/* ---------- bangunan ---------- */
+const ft=ctex(256,256,(x,w,h)=>{x.fillStyle='#cfd1d4';x.fillRect(0,0,w,h);x.strokeStyle='#aeb2b7';x.lineWidth=4;x.strokeRect(0,0,w,h)});ft.wrapS=ft.wrapT=THREE.RepeatWrapping;ft.repeat.set(20,12);
+const floor=M(new THREE.PlaneGeometry(40,24),new THREE.MeshStandardMaterial({map:ft,roughness:.45}),0,.01,0,B);floor.rotation.x=-PI/2;
+bx(41,.8,25,0xb9bcc1,0,-.8,0);bx(300,.2,300,0x7d8287,0,-1.5,0);
+for(let i=0;i<16;i++)bx(rnd(3,6),rnd(15,32),rnd(3,6),pk([0x9aa4ad,0x8a96a1,0xa7b0b8]),-40+i*5.4,-14,-rnd(24,44));
+const gw=(x1,z1,x2,z2,h,fc=0x23262b)=>{const l=Math.hypot(x2-x1,z2-z1),hz=z1==z2,g=gp((x1+x2)/2,(z1+z2)/2,hz?0:PI/2),n=Math.max(1,Math.round(l/2.5));bx(l,h,.05,GL,0,0,0,g);bx(l,.15,.22,fc,0,0,0,g);bx(l,.15,.22,fc,0,h-.15,0,g);for(let i=0;i<=n;i++)bx(.1,h,.2,fc,-l/2+i*l/n,0,0,g);ob((x1+x2)/2,(z1+z2)/2,hz?l:.3,hz?.3:l)};
+gw(-20,-12,20,-12,5.4);gw(20,-12,20,12,5.4);gw(-20,12,20,12,1.5);
+bx(.4,3.4,24,0xf3f3f3,-20.2,0,0);bx(.5,.12,24.2,0x23262b,-20.2,3.4,0);
+[1.8,4.4].forEach(z=>{bx(.12,3,1.9,0x3a3a3a,-19.96,0,z);bx(.1,2.8,1.6,0x7a5232,-19.9,0,z);bx(.08,.12,.1,0xcccccc,-19.8,1.4,z+.55);bx(.06,.28,.9,LS,-19.9,3.05,z)});
+bx(.06,1.2,2.4,0x2f3a4a,-19.95,2,-6.8);bx(.07,.9,2,0xe0b25a,-19.92,2.15,-6.8);
+const sg=M(new THREE.PlaneGeometry(4,1),new THREE.MeshBasicMaterial({map:ctex(512,128,(x,w,h)=>{x.fillStyle='#1d2530';x.fillRect(0,0,w,h);x.fillStyle='#fff';x.font='bold 62px system-ui';x.textAlign='center';x.fillText('AI OFFICE',w/2,84)})}),-19.78,2.6,-2.5,B);sg.rotation.y=PI/2;
+/* ---------- perabot ---------- */
+const MB=new THREE.MeshStandardMaterial({map:ctex(256,256,(x,w,h)=>{x.fillStyle='#2b2c31';x.fillRect(0,0,w,h);x.strokeStyle='rgba(255,255,255,.22)';for(let i=0;i<16;i++){x.lineWidth=rnd(.5,2.5);x.beginPath();x.moveTo(rnd(0,w),0);x.bezierCurveTo(rnd(0,w),h*.3,rnd(0,w),h*.6,rnd(0,w),h);x.stroke()}}),roughness:.25,metalness:.2}),WD=mat(0xc89f75,{roughness:.55});
+function chair(x,z,r,c=0x3b3f46){const g=gp(x,z,r);bx(.85,.12,.85,c,0,.5,0,g);bx(.85,.8,.12,c,0,.62,-.4,g);cy(.06,.5,0x8a8f96,0,0,0,g,8);bx(.9,.05,.1,0x55595f,0,.03,0,g);bx(.1,.05,.9,0x55595f,0,.03,0,g)}
+function mon(p,x,z,r,y=1){const g=gp(x,z,r,p);g.position.y=y;cy(.05,.3,0x2b2b2b,0,0,0,g);bx(.4,.03,.3,0x2b2b2b,0,0,0,g);bx(.95,.55,.05,0x15171a,0,.3,0,g);bx(.86,.46,.01,SC,0,.35,.03,g);bx(.75,.03,.26,0xe8e8e8,0,0,.5,g)}
+const SEATS=[];
+function bench(x,z,n){const w=n*2.2,g=gp(x,z);bx(w,.08,1.6,0xc89f75,0,.92,0,g);for(let i=0;i<=n;i++)bx(.08,.92,1.4,0xf4f4f4,-w/2+.1+i*(w-.2)/n,0,0,g);bx(w-.3,.4,.04,0xf4f4f4,0,.5,0,g);ob(x,z,w,1.6);
+for(let i=0;i<n;i++){const lx=-w/2+1.1+i*2.2;[1,-1].forEach(s=>{mon(g,lx,-s*.15,s>0?0:PI);cy(.07,.14,pk([0xe63946,0xf4a261,0x2a9d8f]),lx+.62,1,s*.45,g);const r=s>0?PI:0;SEATS.push({x:x+lx,z:z+s*1.35,ry:r});chair(x+lx,z+s*1.35,r)})}}
+function meet(x,z,w,d,top,n,r=0,lap=0){const g=gp(x,z,r),s=Math.sin(r),c=Math.cos(r);bx(w,.1,d,top,0,.88,0,g);[-1,1].forEach(k=>bx(.2,.88,d-.5,0xdcdcdc,k*(w/2-.7),0,0,g));ob(x,z,w,d,r);
+for(let i=0;i<n;i++)[1,-1].forEach(sd=>{const lx=-w/2+(i+.5)*w/n,lz=sd*(d/2+.75);chair(x+lx*c+lz*s,z-lx*s+lz*c,r+(sd>0?PI:0));if(lap){bx(.5,.03,.35,0xd0d3d8,lx,.98,sd*(d/2-.55),g);bx(.5,.32,.03,0x1c1f24,lx,1,sd*(d/2-.72),g)}})}
+function sofa(x,z,w,r,c){const g=gp(x,z,r),l=new THREE.Color(c).offsetHSL(0,0,.07).getHex(),n=Math.round(w/1.5),cw=(w-.6)/n;bx(w,.5,1.2,c,0,0,0,g);bx(w,.9,.3,c,0,.3,-.45,g);[-1,1].forEach(s=>bx(.3,.75,1.2,c,s*(w/2-.15),0,0,g));for(let i=0;i<n;i++)bx(cw-.06,.18,.85,l,-w/2+.3+cw*(i+.5),.5,.1,g);[-1,1].forEach(s=>bx(.45,.45,.14,0xeee8dc,s*(w/2-.75),.6,-.15,g));ob(x,z,w,1.2,r)}
+function plant(x,z,s=1){const g=gp(x,z);cy(.34*s,.5*s,0xf2f2f2,0,0,0,g);cy(.04,.5*s,0x5a4630,0,.5*s,0,g,6);for(let i=0;i<6;i++)ic(rnd(.28,.4)*s,pk(GR),rnd(-.25,.25)*s,rnd(.9,1.6)*s,rnd(-.25,.25)*s,g);ob(x,z,.9*s,.9*s)}
+function planter(x,z,w){bx(w,.7,.8,0xf4f4f4,x,0,z);bx(w-.15,.15,.65,0x4a3b2c,x,.7,z);for(let i=0;i<w;i++)[-.18,.18].forEach(k=>ic(rnd(.3,.4),pk(GR),x-w/2+.5+i,rnd(.95,1.1),z+k));ob(x,z,w,.8)}
+const vase=(x,y,z,c)=>{cy(.12,.35,0xd8e6ee,x,y,z);ic(.28,c,x,y+.55,z)};
+const pillar=(x,z)=>{bx(.9,4,.9,0xf2f2f2,x,0,z);ob(x,z,.9,.9)};
+/* denah */
+bench(3.6,-3.2,6);bench(8.2,-9,4);bench(17.2,-9,2);bench(17.2,-3.6,2);
+meet(-5.2,-9,6.4,2.4,WD,4,0,0);vase(-5.2,.98,-9,0xd62839);
+bx(10,.04,5.6,0x5a626d,-2,0,8.6);meet(-2,8.6,8,3.2,WD,5,0,1);vase(-2,.98,8.6,0x58a34f);
+meet(-15.5,8.6,4.8,2.4,MB,3,PI/2);vase(-15.5,.98,8.6,0xf39c12);
+meet(11,8.6,4.8,2.4,MB,3);vase(11,.98,8.6,0xf39c12);
+gw(-20,5.4,-14.5,5.4,3.2);gw(-11.5,5.4,-7,5.4,3.2);gw(-7,5.4,-7,12,3.2);gw(3,5.4,3,12,3.2);gw(6.5,5.4,6.5,12,3.2);gw(6.5,5.4,12,5.4,3.2);
+pillar(-7,5.2);pillar(3,5.2);pillar(6.5,5.2);
+bx(1.3,1.15,4.6,0xb88a5e,-18.7,0,-2.5);bx(1.7,.1,5,0xfafafa,-18.7,1.15,-2.5);mon(B,-18.7,-3.4,PI/2,1.25);ob(-18.7,-2.5,1.7,5);
+bx(6.8,.04,4.6,0x646b75,-15.2,0,-7.7);sofa(-15.5,-10,6,0,0x6e7480);sofa(-19,-6.8,3.4,PI/2,0x6e7480);
+cy(.85,.1,0xf5f5f5,-15.2,.4,-7.4,B,24);cy(.08,.4,0x999999,-15.2,0,-7.4);ob(-15.2,-7.4,1.7,1.7);
+sofa(-15.5,2.4,5,0,0x7b8089);cy(.45,.55,0xf0f0f0,-12,0,1.8);ob(-12,1.8,.9,.9);
+bx(1.1,1.5,3.4,0xe6e8eb,19.3,0,2.4);bx(.9,.35,.9,0xf8f8f8,19.3,1.5,2.4);bx(.9,.04,.7,0x333333,19.3,1.85,2.4);ob(19.3,2.4,1.1,3.4);
+planter(-17.5,-11.6,4);planter(.2,-11.6,3);planter(13.6,-11.6,2);planter(-17,11.55,4);planter(-10,11.55,3);planter(15.5,11.55,5);
+[[-10.8,-10.6,1.2],[14.5,-6.2,1],[19.2,-.4,1.2],[19.2,7,1.3],[-9.3,4,1.2],[4.8,4,1.1],[-19.2,-11,1.1],[9.5,6.6,1]].forEach(a=>plant(...a));
+OB.forEach(([x,z,w,d])=>{for(let i=0;i<W;i++)for(let j=0;j<H;j++)if(Math.abs(i-19.5-x)<w/2+.35&&Math.abs(j-11.5-z)<d/2+.35)blk[j*W+i]=1});
+/* ---------- jalur (A*) ---------- */
+function near(x,z){const i0=Math.max(0,Math.min(W-1,Math.floor(x+20))),j0=Math.max(0,Math.min(H-1,Math.floor(z+12)));for(let r=0;r<8;r++)for(let i=i0-r;i<=i0+r;i++)for(let j=j0-r;j<=j0+r;j++)if(i>=0&&j>=0&&i<W&&j<H&&!blk[j*W+i])return j*W+i;return j0*W+i0}
+function route(sx,sz,tx,tz){const s0=near(sx,sz),T=near(tx,tz),gs=new Float32Array(W*H).fill(1e9),fr=new Int16Array(W*H).fill(-1),op=[s0],h=i=>Math.hypot(i%W-T%W,(i/W|0)-(T/W|0));gs[s0]=0;
+while(op.length){let b=0;for(let k=1;k<op.length;k++)if(gs[op[k]]+h(op[k])<gs[op[b]]+h(op[b]))b=k;const c=op.splice(b,1)[0];if(c==T)break;const x0=c%W,y0=c/W|0;
+for(let dx=-1;dx<2;dx++)for(let dy=-1;dy<2;dy++){const nx=x0+dx,ny=y0+dy;if((!dx&&!dy)||nx<0||ny<0||nx>=W||ny>=H)continue;const n=ny*W+nx;if(blk[n]||(dx&&dy&&(blk[y0*W+nx]||blk[ny*W+x0])))continue;const ng=gs[c]+Math.hypot(dx,dy);if(ng<gs[n]){gs[n]=ng;fr[n]=c;if(!op.includes(n))op.push(n)}}}
+const p=[];for(let c=T;c!=s0&&c!=-1;c=fr[c])p.unshift([c%W-19.5,(c/W|0)-11.5]);p.push([tx,tz]);return p}
+/* ---------- karakter ---------- */
+const HR=[0x1c1c1c,0x2b2118,0x5a3825,0x8a5a2b],SK=[0xf1c27d,0xe0ac69,0xc68642,0x8d5524];
+function person(sh,fem,hr,sk){const g=new THREE.Group(),P=(w,h,d,c,x,y,z,p=g)=>bx(w,h,d,c,x,y-h/2,z,p),lb=(x,y,w,h,c)=>{const p=new THREE.Group();p.position.set(x,y,0);g.add(p);P(w,h,w,c,0,-h/2,0,p);return p};
+const lL=lb(-.17,.95,.26,.95,0x2e3440),lR=lb(.17,.95,.26,.95,0x2e3440);[lL,lR].forEach(l=>P(.27,.1,.42,0x1a1a1a,0,-.9,.06,l));
+P(.64,.78,.36,sh,0,1.34,0);const aL=lb(-.41,1.66,.18,.74,sh),aR=lb(.41,1.66,.18,.74,sh);[aL,aR].forEach(a=>P(.16,.16,.16,sk,0,-.78,0,a));
+M(new THREE.SphereGeometry(.25,16,12),sk,0,1.95,0,g);M(new THREE.SphereGeometry(.27,16,12,0,6.283,0,1.3),hr,0,1.97,-.03,g);
+if(fem)P(.5,.75,.16,hr,0,1.75,-.22);[-.09,.09].forEach(x=>P(.05,.05,.03,0x111111,x,1.96,.25));return{g,lL,lR,aL,aR}}
+function tag(n,r,c){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:ctex(256,96,(x,w,h)=>{x.fillStyle='rgba(20,22,28,.85)';x.beginPath();x.roundRect(4,4,w-8,h-8,18);x.fill();x.fillStyle='#fff';x.font='bold 34px system-ui';x.textAlign='center';x.fillText(n,w/2,42);x.fillStyle=c;x.font='26px system-ui';x.fillText(r,w/2,76)}),depthTest:false,transparent:true}));s.scale.set(2.3,.86,1);s.position.y=3;s.renderOrder=9;return s}
+const POI=[[-12.5,-6.2],[-.5,-8.8],[-16.4,-1.5],[17.5,6.5],[17.5,1.5],[-2.2,5.9],[-12,3.2],[14.2,8.5],[0,.2]];let auto=true;
+class A{
+constructor(n,r,sh,fem,seat,fx=0){Object.assign(this,person(sh,fem,pk(HR),pk(SK)));Object.assign(this,{n,r,seat,fx,path:[],k:rnd(0,9),ph:0});this.g.userData.ag=this;if(n)this.g.add(tag(n,r,'#'+sh.toString(16).padStart(6,'0')));S.add(this.g);this.sit()}
+sit(){const s=this.seat;this.g.position.set(s.x,-.35,s.z);this.g.rotation.y=s.ry;this.st='sit';this.t=rnd(10,24);this.toSeat=0}
+go(x,z,sd,idle=6){if(!sd){const c=near(x,z);x=c%W-19.5;z=(c/W|0)-11.5}this.path=route(this.g.position.x,this.g.position.z,x,z);this.toSeat=sd;this.idle=idle;this.st='walk'}
+update(dt,t){const g=this.g;
+if(this.st=='walk'){const p=this.path[0];
+if(!p){if(this.toSeat)this.sit();else{this.st='idle';this.t=this.idle}}
+else{const dx=p[0]-g.position.x,dz=p[1]-g.position.z,d=Math.hypot(dx,dz),s=3.4*dt;
+if(d<=s){g.position.x=p[0];g.position.z=p[1];this.path.shift()}else{g.position.x+=dx/d*s;g.position.z+=dz/d*s;let a=Math.atan2(dx,dz)-g.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));g.rotation.y+=a*Math.min(1,dt*10)}
+this.ph+=dt*9;const w=Math.sin(this.ph)*.7;this.lL.rotation.x=w;this.lR.rotation.x=-w;this.aL.rotation.x=-w*.8;this.aR.rotation.x=w*.8;g.position.y=Math.abs(Math.cos(this.ph))*.07}}
+else if(this.st=='sit'){this.lL.rotation.x=this.lR.rotation.x=-1.5;this.aL.rotation.x=-1.25+Math.sin(t*13+this.k)*.06;this.aR.rotation.x=-1.25+Math.sin(t*11+this.k)*.06}
+else{this.lL.rotation.x=this.lR.rotation.x=this.aL.rotation.x=this.aR.rotation.x=0;g.position.y=0;this.aL.rotation.z=Math.sin(t*2+this.k)*.04;this.aR.rotation.z=-this.aL.rotation.z}
+if(this.st!='walk'&&!this.fx&&auto){this.t-=dt;if(this.t<=0){if(this.st=='sit'){const q=pk(POI);this.go(q[0],q[1],0,rnd(4,9))}else this.go(this.seat.x,this.seat.z,1)}}}}
+const AG=[['Rani','Riset',0x3a86ff,1],['Dimas','Kreator',0xff7d00,0],['Lina','Kritikus',0x8338ec,1],['Raka','Produksi',0x2a9d8f,0],['Mira','Upload',0xe63946,1],['Tio','Approval',0x6c757d,0]];
+const AGS=[1,4,7,10,14,17].map((s,i)=>new A(...AG[i].slice(0,2),AG[i][2],AG[i][3],SEATS[s])),EX=[0,3,6,9,11,13,18,20,23,26].map(s=>new A('','',pk([0x2f3e5a,0xcfd6df,0x3d3d3d,0x8d99ae,0xbc6c25]),Math.random()<.5,SEATS[s],1));
+S.traverse(o=>{if(o.isMesh){o.castShadow=!o.material.transparent;o.receiveShadow=true}});
+/* ---------- interaksi ---------- */
+let sel=null,pd=null;const ring=new THREE.Mesh(new THREE.RingGeometry(.55,.72,32),new THREE.MeshBasicMaterial({color:0xffd60a,side:THREE.DoubleSide}));ring.rotation.x=-PI/2;ring.visible=false;S.add(ring);
+const info=()=>$('i').textContent=sel?`${sel.n} · ${sel.r} dipilih. Ketuk lantai untuk berjalan.`:'Ketuk agen, lalu ketuk lantai untuk memindahkan.';info();
+const RC=new THREE.Raycaster(),V=new THREE.Vector2(),el=R.domElement;
+el.addEventListener('pointerdown',e=>pd=[e.clientX,e.clientY,performance.now()]);
+el.addEventListener('pointerup',e=>{if(!pd||Math.hypot(e.clientX-pd[0],e.clientY-pd[1])>6||performance.now()-pd[2]>500)return;V.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);RC.setFromCamera(V,C);
+const h=RC.intersectObjects(AGS.map(a=>a.g),true)[0];if(h){let o=h.object;while(o&&!o.userData.ag)o=o.parent;sel=o.userData.ag;info();return}
+const f=RC.intersectObject(floor)[0];if(f&&sel)sel.go(f.point.x,f.point.z,0,12)});
+const zm=f=>C.position.sub(O.target).multiplyScalar(f).add(O.target);
+$('zi').onclick=()=>zm(.8);$('zo').onclick=()=>zm(1.25);$('rs').onclick=()=>{C.position.copy(home);O.target.set(0,0,0)};
+$('au').onclick=e=>{auto=!auto;e.target.textContent=auto?'⏸':'▶'};
+addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)});
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 2.5, 5);
+/* ---------- INTEGRASI BOT NARASI ---------- */
+$('btn-generate').onclick = async () => {
+    const tema = $('input-tema').value;
+    if (!tema) return alert("Masukkan tema video dulu, bro!");
+    
+    const panelHasil = $('hasil-narasi');
+    panelHasil.textContent = ">>> Mengirim tema: '" + tema + "' ke Bot...\n>>> Dimas sedang memproses...";
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true; // Aktifkan bayangan agar realistis
-        document.body.appendChild(renderer.domElement);
+    // 1. Secara visual, suruh Dimas (Kreator) jalan ke meja utama untuk bekerja
+    const dimas = AGS.find(a => a.n === 'Dimas');
+    if (dimas) {
+        dimas.go(-5.2, -9, 0, 15); 
+    }
 
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.01;
+    // 2. Tembak API Bot kamu (Ganti URL_API_BOT_KAMU dengan endpoint sesungguhnya nanti)
+    try {
+        // Simulasi respon sementara sebelum API dicolok:
+        setTimeout(() => {
+            panelHasil.textContent = ">>> SUKSES!\n\nBerikut draft narasinya:\n'Di dunia yang serba cepat ini, [ " + tema + " ] menjadi kunci utama untuk masa depan yang lebih baik...'\n\n(Siap diproses menjadi video)";
+        }, 3000); 
+    } catch (err) {
+        panelHasil.textContent = ">>> ERROR: Gagal terhubung ke server Bot Narasi.";
+    }
+};
 
-        // 2. Pencahayaan Kantor (Terang)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(5, 10, 5);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
-        scene.add(dirLight);
-
-        // 3. Lantai Kayu Sederhana & Dinding
-        const floorGeo = new THREE.PlaneGeometry(20, 20);
-        const floorMat = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.8 }); // Warna coklat kayu muda
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        scene.add(floor);
-
-        const wallGeo = new THREE.BoxGeometry(20, 5, 0.2);
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff }); // Dinding putih bersih
-        const wall = new THREE.Mesh(wallGeo, wallMat);
-        wall.position.set(0, 2.5, -3);
-        wall.receiveShadow = true;
-        scene.add(wall);
-
-        // 4. Membuat Meja Kerja Divisi (Gaya Minimalis)
-        const deskGroup = new THREE.Group();
-        
-        // Papan Meja (Putih)
-        const topGeo = new THREE.BoxGeometry(3, 0.1, 1.5);
-        const topMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.2 });
-        const deskTop = new THREE.Mesh(topGeo, topMat);
-        deskTop.position.y = 1;
-        deskTop.castShadow = true;
-        deskTop.receiveShadow = true;
-        deskGroup.add(deskTop);
-
-        // Kaki Meja (Besi Hitam)
-        const legGeo = new THREE.BoxGeometry(0.1, 1, 1.3);
-        const legMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.5 });
-        const legL = new THREE.Mesh(legGeo, legMat);
-        legL.position.set(-1.4, 0.5, 0);
-        legL.castShadow = true;
-        deskGroup.add(legL);
-        
-        const legR = new THREE.Mesh(legGeo, legMat);
-        legR.position.set(1.4, 0.5, 0);
-        legR.castShadow = true;
-        deskGroup.add(legR);
-
-        scene.add(deskGroup);
-
-        // 5. Membuat Perwakilan iMac / Layar Monitor
-        const macGroup = new THREE.Group();
-        
-        // Stand Monitor
-        const standGeo = new THREE.BoxGeometry(0.2, 0.3, 0.2);
-        const silverMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.2 });
-        const stand = new THREE.Mesh(standGeo, silverMat);
-        stand.position.set(0, 1.15, -0.2);
-        macGroup.add(stand);
-
-        // Bodi Layar
-        const monitorGeo = new THREE.BoxGeometry(1.2, 0.8, 0.05);
-        const monitorMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-        const monitor = new THREE.Mesh(monitorGeo, monitorMat);
-        monitor.position.set(0, 1.5, -0.15);
-        macGroup.add(monitor);
-
-        // Layar Menyala
-        const screenGeo = new THREE.PlaneGeometry(1.1, 0.7);
-        const screenMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x0055ff, emissiveIntensity: 0.4 });
-        const screen = new THREE.Mesh(screenGeo, screenMat);
-        screen.position.set(0, 1.5, -0.12);
-        macGroup.add(screen);
-
-        macGroup.position.set(0, 0, 0);
-        macGroup.castShadow = true;
-        scene.add(macGroup);
-
-        // 6. Loop Render
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
-</body>
-</html>
+/* ---------- RENDER LOOP ---------- */
+const clk=new THREE.Clock();
+R.setAnimationLoop(()=>{const dt=Math.min(clk.getDelta(),.05),t=clk.elapsedTime;AGS.concat(EX).forEach(a=>a.update(dt,t));ring.visible=!!sel;if(sel)ring.position.set(sel.g.position.x,.04,sel.g.position.z);O.update();R.render(S,C)});
+</script></body></html>
