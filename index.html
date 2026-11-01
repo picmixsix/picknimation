@@ -5,19 +5,20 @@
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#8e9296;font-family:system-ui,sans-serif;touch-action:none}
 canvas{display:block}
-#t{position:fixed;left:10px;top:10px;padding:8px 12px;background:#000a;color:#fff;border-radius:10px;font-size:13px;line-height:1.45;pointer-events:none;max-width:72vw}
+#t{position:fixed;left:10px;top:10px;padding:8px 12px;background:#000a;color:#fff;border-radius:10px;font-size:13px;line-height:1.45;pointer-events:none;max-width:60vw}
 #b{position:fixed;right:10px;bottom:16px;display:flex;flex-direction:column;gap:8px}
 #b button{width:46px;height:46px;border:0;border-radius:12px;background:#000b;color:#fff;font-size:21px}
 </style></head><body>
 <div id="t"><b>Kantor AI 3D</b><br><span id="i"></span><br><small>Seret: putar · Cubit: zoom · Dua jari: geser</small></div>
 <div id="b"><button id="zi">+</button><button id="zo">−</button><button id="rs">⌂</button><button id="au">⏸</button></div>
 
-<!-- PANEL KONTROL BOT NARASI -->
-<div id="panel-bot" style="position:fixed; left:10px; top:110px; padding:12px; background:#000a; color:#fff; border-radius:10px; font-size:13px; z-index:99; border-left:3px solid #ff7d00;">
-    <b>⚙️ Generator Narasi</b><br>
-    <input type="text" id="input-tema" placeholder="Masukkan Tema Video..." style="margin-top:8px; width:90%; padding:5px; border-radius:4px; border:none; color:#333;"><br>
-    <button id="btn-generate" style="margin-top:8px; width:100%; padding:6px; background:#ff7d00; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Tugaskan Dimas (Kreator)</button>
-    <div id="hasil-narasi" style="margin-top:10px; font-size:12px; max-width:220px; white-space:pre-wrap; color:#a8dadc;"></div>
+<!-- TOMBOL GERIGI & BAR EVENT KECIL (Kanan Atas) -->
+<button id="btn-toggle" style="position:fixed; right:10px; top:10px; width:46px; height:46px; border:0; border-radius:12px; background:#000b; color:#fff; font-size:21px; z-index:100; cursor:pointer; display:flex; justify-content:center; align-items:center;">⚙️</button>
+
+<div id="panel-bot" style="position:fixed; right:10px; top:65px; padding:12px; background:#000a; color:#fff; border-radius:10px; font-size:13px; z-index:99; border-right:3px solid #ff7d00; display:none; flex-direction:column; width:220px; box-sizing:border-box;">
+    <input type="text" id="input-tema" placeholder="Tema Video..." style="width:100%; padding:8px; border-radius:6px; border:none; box-sizing:border-box; margin-bottom:8px; background:#f0f0f0; color:#111;">
+    <button id="btn-generate" style="width:100%; padding:8px; background:#ff7d00; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">Tugaskan Dimas</button>
+    <div id="hasil-narasi" style="margin-top:10px; font-size:12px; width:100%; white-space:pre-wrap; color:#a8dadc;"></div>
 </div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -129,6 +130,11 @@ $('au').onclick=e=>{auto=!auto;e.target.textContent=auto?'⏸':'▶'};
 addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)});
 
 /* ---------- INTEGRASI BOT NARASI ---------- */
+$('btn-toggle').onclick = () => {
+    const p = $('panel-bot');
+    p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+};
+
 $('btn-generate').onclick = async () => {
     const tema = $('input-tema').value;
     if (!tema) return alert("Masukkan tema video dulu, bro!");
@@ -136,13 +142,13 @@ $('btn-generate').onclick = async () => {
     const panelHasil = $('hasil-narasi');
     panelHasil.textContent = ">>> Mengirim tema: '" + tema + "' ke Bot...\n>>> Dimas sedang memproses...";
 
-    // 1. Secara visual, suruh Dimas (Kreator) jalan ke meja utama untuk bekerja
+    // Secara visual, suruh Dimas (Kreator) jalan ke meja utama untuk bekerja
     const dimas = AGS.find(a => a.n === 'Dimas');
     if (dimas) {
         dimas.go(-5.2, -9, 0, 15); 
     }
 
-    // 2. Tembak API Bot kamu (Ganti URL_API_BOT_KAMU dengan endpoint sesungguhnya nanti)
+    // Tembak API Bot kamu (Ganti URL_API_BOT_KAMU dengan endpoint sesungguhnya nanti)
     try {
         // Simulasi respon sementara sebelum API dicolok:
         setTimeout(() => {
